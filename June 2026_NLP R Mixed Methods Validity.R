@@ -648,9 +648,13 @@ for (part in parts_list) {
   writeData(wb, sheet_name_s, sentiment_results[[part]])
 }
 
-# 5. Save the workbook
+# Save excel workbook to respective folder within the master folder folder file path
 saveWorkbook(wb, file.path(stats_dir, "MAY23_QUANT_STATS.xlsx"), overwrite = TRUE)
 
-cat("\nExcel exporting complete. Workbook saved to:", stats_dir, "\n")
+cat("\nExcel exporting complete. Workbook saved to:", stats_dir, "\n") 
 
-
+# Notify user via console all analyses and exports are complete
+cat("\n========== Final Message to User ==========
+NLP and Statistical Analyses Are complete!
+Visual and Quantiative Exports Have Successfuly Saved to Your Chosen File Path.
+Please Save the Current R Script and Session Before Closing RStudio.\n")
