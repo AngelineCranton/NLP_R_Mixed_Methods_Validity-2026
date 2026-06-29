@@ -386,10 +386,10 @@ calculate_descriptives <- function(dataframe, part_label) {
 
 # Compile and print descriptive stats table
 descriptive_table <- bind_rows(
-  calculate_descriptives(analysis_frames$P1, "Part 1 (General Course Evaluation)"),
-  calculate_descriptives(analysis_frames$P2_1, "Part 2.1 (Behavioral Adaptations)"),
-  calculate_descriptives(analysis_frames$P2_2, "Part 2.2 (Attitudinal Adaptations)"),
-  calculate_descriptives(analysis_frames$P3, "Part 3 (Top 5 Selected Skills)")
+  calculate_descriptives(analysis_frames$P1, "Part 1 (Course Satisfaction)"),
+  calculate_descriptives(analysis_frames$P2_1, "Part 2.1 (Course Helpfulness)"),
+  calculate_descriptives(analysis_frames$P2_2, "Part 2.2 (Course Unhelpfulness)"),
+  calculate_descriptives(analysis_frames$P3, "Part 3 (Course (Skills) Helpfulness)")
 )
 
 # Descriptive stats table print & confirmation message in console
