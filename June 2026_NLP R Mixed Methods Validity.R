@@ -402,37 +402,66 @@ print(descriptive_table, row.names = FALSE)
 run_spearman_matrix <- function(dataframe, target_ratings, part_label) {
   cor_results <- list()
   
-  # Model 1: Likert Ratings vs. NLP Metrics
+  # Model 1: Likert Ratings vs. NLP Metrics (including Word Count)
   for (rating in target_ratings) {
+    # Likert Score vs. Word Count
+    test_wc <- cor.test(dataframe[[rating]], dataframe$Word_Count, method = "spearman", exact = FALSE)
+    cor_results[[length(cor_results) + 1]] <- data.frame(
+      Prompt       = part_label,
+      Variable_A   = rating,
+      Variable_B   = "Word_Count",
+      Spearman_Rho = round(test_wc$estimate, 3),
+      p_value      = format.pval(test_wc$p.value, digits = 3, eps = 0.001)
+    )
+    
     # Likert Score vs. Frequency Counts
     test_freq <- cor.test(dataframe[[rating]], dataframe$Frequency, method = "spearman", exact = FALSE)
     cor_results[[length(cor_results) + 1]] <- data.frame(
-      Prompt      = part_label,
-      Variable_A  = rating,
-      Variable_B  = "Frequency",
-      Spearman_Rho= round(test_freq$estimate, 3),
-      p_value     = format.pval(test_freq$p.value, digits = 3, eps = 0.001)
+      Prompt       = part_label,
+      Variable_A   = rating,
+      Variable_B   = "Frequency",
+      Spearman_Rho = round(test_freq$estimate, 3),
+      p_value      = format.pval(test_freq$p.value, digits = 3, eps = 0.001)
     )
     
     # Likert Score vs. Sentiment Counts
     test_sent <- cor.test(dataframe[[rating]], dataframe$Sentiment, method = "spearman", exact = FALSE)
     cor_results[[length(cor_results) + 1]] <- data.frame(
-      Prompt      = part_label,
-      Variable_A  = rating,
-      Variable_B  = "Sentiment",
-      Spearman_Rho= round(test_sent$estimate, 3),
-      p_value     = format.pval(test_sent$p.value, digits = 3, eps = 0.001)
+      Prompt       = part_label,
+      Variable_A   = rating,
+      Variable_B   = "Sentiment",
+      Spearman_Rho = round(test_sent$estimate, 3),
+      p_value      = format.pval(test_sent$p.value, digits = 3, eps = 0.001)
     )
   }
   
-  # Model 2: Frequency Counts vs. Sentiment Counts
+  # Model 2: Word Count vs. NLP Metrics (Intercorrelations with the Covariate)
+  test_wc_freq <- cor.test(dataframe$Word_Count, dataframe$Frequency, method = "spearman", exact = FALSE)
+  cor_results[[length(cor_results) + 1]] <- data.frame(
+    Prompt       = part_label,
+    Variable_A   = "Word_Count",
+    Variable_B   = "Frequency",
+    Spearman_Rho = round(test_wc_freq$estimate, 3),
+    p_value      = format.pval(test_wc_freq$p.value, digits = 3, eps = 0.001)
+  )
+  
+  test_wc_sent <- cor.test(dataframe$Word_Count, dataframe$Sentiment, method = "spearman", exact = FALSE)
+  cor_results[[length(cor_results) + 1]] <- data.frame(
+    Prompt       = part_label,
+    Variable_A   = "Word_Count",
+    Variable_B   = "Sentiment",
+    Spearman_Rho = round(test_wc_sent$estimate, 3),
+    p_value      = format.pval(test_wc_sent$p.value, digits = 3, eps = 0.001)
+  )
+  
+  # Model 3: Frequency Counts vs. Sentiment Counts
   test_nlp_intercor <- cor.test(dataframe$Frequency, dataframe$Sentiment, method = "spearman", exact = FALSE)
   cor_results[[length(cor_results) + 1]] <- data.frame(
-    Prompt      = part_label,
-    Variable_A  = "Frequency",
-    Variable_B  = "Sentiment",
-    Spearman_Rho= round(test_nlp_intercor$estimate, 3),
-    p_value     = format.pval(test_nlp_intercor$p.value, digits = 3, eps = 0.001)
+    Prompt       = part_label,
+    Variable_A   = "Frequency",
+    Variable_B   = "Sentiment",
+    Spearman_Rho = round(test_nlp_intercor$estimate, 3),
+    p_value      = format.pval(test_nlp_intercor$p.value, digits = 3, eps = 0.001)
   )
   
   return(bind_rows(cor_results))
