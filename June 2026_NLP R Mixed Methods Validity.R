@@ -4,9 +4,6 @@
 library(dplyr)     # For data manipulation and plotting
 library(stringr)   # For text cleaning
 library(readr)     # For reading CSV data files
-library(wordcloud) # For creating the word cloud
-library(RColorBrewer) # For creating the word cloud
-library(png)       # For saving the word cloud as a png
 library(syuzhet)   # For sentiment analysis
 library(openxlsx)  # For excel exporting
 library(topicmodels) # For LDA topic modeling (Latent Dirichlet Allocation)
@@ -96,8 +93,8 @@ Get_Sentiment <- function(cleaned_text) {
 }
 
 #### LATENT DIRICHLET ALLOCATION (LDA) TOPIC MODELING ####
-## Function to perform LDA topic modeling with automated stop-word removal
-Perform_LDA <- function(text_corpus, num_topics = 5, top_terms = 8) { # Lowered default topics to 6
+## Function to perform LDA topic modeling with automated stop-word removal & Theta prevalence calculation
+Perform_LDA <- function(text_corpus, num_topics = 5, top_terms = 8) {
   corpus <- Corpus(VectorSource(text_corpus))
   corpus <- tm_map(corpus, content_transformer(tolower))
   corpus <- tm_map(corpus, removePunctuation)
@@ -114,7 +111,7 @@ Perform_LDA <- function(text_corpus, num_topics = 5, top_terms = 8) { # Lowered 
                     "one", "two", "three", "four", "five", "thing", "things", "skill", "skills", "important", 
                     "use", "used", "know", "did", "not","can", "cant", "could", "would", "made", "much", 
                     "lot", "found", "got", "get", "just", "however", "really", "also", "something", "anything"
-                    )
+  )
   
   corpus <- tm_map(corpus, removeWords, c(standard_stops, custom_stops))
   corpus <- tm_map(corpus, stripWhitespace)
@@ -135,39 +132,24 @@ Perform_LDA <- function(text_corpus, num_topics = 5, top_terms = 8) { # Lowered 
   # To perform LDA topic modeling
   lda_model <- LDA(dtm, k = num_topics, control = list(seed = 1234))
   
+  # Calculate document-topic distribution matrix (theta)
+  theta_matrix <- posterior(lda_model)$topics
+  
+  # Compute mean topic prevalence across all documents for this prompt
+  theta_prevalence <- colMeans(theta_matrix)
+  prevalence_formatted <- paste0(round(theta_prevalence * 100, 2), "%")
+  
   # Retrieve the top terms for each topic
   lda_terms <- terms(lda_model, top_terms)
   
-  # Print the top terms for each topic
-  print("Top terms for each topic:")
-  print(lda_terms)
+  # Attach Theta prevalence values as the top row of the table
+  lda_table <- rbind(`Theta_Prevalence (%)` = prevalence_formatted, lda_terms)
   
-  return(lda_terms)
-}
-
-#### WORD CLOUDS ####
-# Helper function to generate word clouds with custom dimensions
-save_wordcloud <- function(data_vector, filename, folder) {
-  # High resolution PNG with large dimensions for readability
-  png(file.path(folder, filename), width = 1800, height = 1200, res = 200)
+  # Print the top terms and topic prevalence (Theta) for each topic
+  print("Top terms and Theta prevalence for each topic:")
+  print(lda_table)
   
-  # Standard margins
-  par(mar = c(0, 0, 0, 0))
-  
-  # Create cloud with custom scaling
-  tryCatch({
-    wordcloud(words = names(data_vector), 
-              freq = as.vector(data_vector), 
-              min.freq = 1, 
-              random.order = TRUE,
-              colors = brewer.pal(8, "Dark2"),
-              scale = c(5.0, 1.2),
-              max.words = 100)
-  }, error = function(e) {
-    message(paste("Failed to plot:", filename))
-  })
-  
-  dev.off()
+  return(lda_table)
 }
 
 ############################# MAIN CODE: DATA MAPPING & STORAGE #############################
@@ -292,7 +274,7 @@ for (part_name in names(lda_corpus)) {
 }
 
 # LDA confirmation message in console
-cat("\nLDA Analysis complete. Topic models stored in 'lda_results'.\n")
+cat("\nLDA Analysis complete. Topic models with Theta proportions stored in 'lda_results'.\n")
 
 ####################### STATISTICS: DESCRIPTIVE, SPEARMAN'S, REGRESSION #######################
 
@@ -575,100 +557,48 @@ hierarchical_regression_table <- bind_rows(final_regression_results)
 cat("\n--- HIERARCHICAL LINEAR BOOTSTRAPPED REGRESSION TABLE ---\n")
 print(hierarchical_regression_table, row.names = FALSE)
 
-#################################### EXPORTS: PNGs & EXCEL ####################################
+#################################### EXCEL EXPORTS ####################################
 
 #### EXPORT FOLDER MANAGEMENT ####
-## Like CSV data import, a dialogue box will open to select the save location (ie., file path) of all exports within the master folder
 cat("Please select the location where you want to save your 'master folder'...\n")
 parent_dir <- choose.dir(caption = "Select chosen folder to save your exports")
 
-# Ensure save location is selected
 if (is.na(parent_dir)) {
   stop("Export cancelled: No save location selected.")
 }
 
 ## Define folder paths within chosen save location
-master_folder <- file.path(parent_dir, "MAY23_EXPORTS") # Includes all exports
-freq_dir      <- file.path(master_folder, "WC_FA")      # Includes Frequency Analysis word clouds (raw)
-lda_dir       <- file.path(master_folder, "WC_LDA")     # Includes LDA word clouds (weighted)
-stats_dir     <- file.path(master_folder, "QUANT_STATS")      # Includes quantitative & statistical findings
+master_folder <- file.path(parent_dir, "JUN2026_EXPORTS")
+stats_dir     <- file.path(master_folder, "QUANT_STATS")
 
-# Create all folders at once using the full path
 dir.create(master_folder, showWarnings = FALSE)
-dir.create(freq_dir, showWarnings = FALSE)
-dir.create(lda_dir, showWarnings = FALSE)
 dir.create(stats_dir, showWarnings = FALSE)
 
-#### WORD CLOUD GENERATION & EXPORT ####
-## Generate word clouds for Frequency Analysis
-for (part_name in names(count_tables_list)) {
-  all_data <- do.call(rbind, count_tables_list[[part_name]])
-  agg_freq <- tapply(all_data$Present_Count, all_data$Target_String, sum)
-  
-  # Save word clouds as PNG to respective folder in master folder
-  save_wordcloud(agg_freq, paste0("WordCloud_", part_name, ".png"), freq_dir)
-}
-
-## Generate weighted word clouds for LDA
-for (part_name in names(lda_results)) {
-  if(!is.null(lda_results[[part_name]])) {
-    mat <- lda_results[[part_name]] # 5x8 matrix
-    
-    # Create a weighted matrix for proportional ranking algorithm representative of LDA terms per topic in each part (Rank 1 = 8 points, Rank 8 = 1 point)
-    term_scores <- setNames(numeric(), character())
-    
-    # Loop through matrix and calculate weighted scores
-    for (col in 1:ncol(mat)) {
-      for (row in 1:nrow(mat)) {
-        term <- mat[row, col]
-        weight <- (nrow(mat) - row + 1) # Rank 1 = 8, Rank 8 = 1
-        
-        # Add weight to the term in tally
-        if (term %in% names(term_scores)) {
-          term_scores[term] <- term_scores[term] + weight
-        } else {
-          term_scores[term] <- weight
-        }
-      }
-    }
-    
-    # Save word clouds as PNG to respective folder in master folder
-    save_wordcloud(term_scores, paste0("WordCloud_LDA_", part_name, ".png"), lda_dir)
-  }
-}
-
-cat("\nWordcloud exporting complete. All word clouds saved to:", master_folder, "\n")
-
 #### EXCEL WORKBOOK GENERATION & EXPORT ####
-### Create Excel workbook
 wb <- createWorkbook()
 
 ## Add statistical sheets
-# Descriptive stats
 addWorksheet(wb, "Descriptive_Stats")
 writeData(wb, "Descriptive_Stats", descriptive_table)
 
-# Spearman's rank order correlation test
 addWorksheet(wb, "Spearman_Results")
 writeData(wb, "Spearman_Results", spearman_table)
 
-# Hierarchical bootstrapped linear regression (with verbosity control)
 addWorksheet(wb, "Regression_Results")
 writeData(wb, "Regression_Results", hierarchical_regression_table)
 
-## Add dynamic sheets -- Frequency Analysis, Sentiment Analysis, and LDA Topic Modeling for each part
+## Add dynamic sheets -- Frequency, Sentiment, and LDA for each part
 for (part in parts_list) {
-  # LDA Tables
+  # LDA Tables (rowNames = TRUE preserves 'Theta_Prevalence (%)' & term ranks in Column A)
   if (!is.null(lda_results[[part]])) {
     sheet_name <- paste0("LDA_", part)
     addWorksheet(wb, sheet_name)
-    writeData(wb, sheet_name, as.data.frame(lda_results[[part]]))
+    writeData(wb, sheet_name, as.data.frame(lda_results[[part]]), rowNames = TRUE)
   }
   
   # Frequency Tables
   sheet_name_f <- paste0("Freq_", part)
   addWorksheet(wb, sheet_name_f)
-  # Combine the list into one DF for the sheet
   writeData(wb, sheet_name_f, bind_rows(count_tables_list[[part]]))
   
   # Sentiment Tables
@@ -677,13 +607,12 @@ for (part in parts_list) {
   writeData(wb, sheet_name_s, sentiment_results[[part]])
 }
 
-# Save excel workbook to respective folder within the master folder folder file path
-saveWorkbook(wb, file.path(stats_dir, "MAY23_QUANT_STATS.xlsx"), overwrite = TRUE)
+# Save excel workbook
+saveWorkbook(wb, file.path(stats_dir, "JUN2026_QUANT_STATS.xlsx"), overwrite = TRUE)
 
-cat("\nExcel exporting complete. Workbook saved to:", stats_dir, "\n") 
+cat("\nExcel exporting complete. Workbook saved to:", stats_dir, "\n")
 
-# Notify user via console all analyses and exports are complete
 cat("\n========== Final Message to User ==========
 NLP and Statistical Analyses Are complete!
-Visual and Quantiative Exports Have Successfuly Saved to Your Chosen File Path.
+Quantitative Exports Have Successfully Saved to Your Chosen File Path.
 Please Save the Current R Script and Session Before Closing RStudio.\n")
